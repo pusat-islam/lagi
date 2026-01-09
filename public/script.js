@@ -1,60 +1,44 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Create stars in the night sky
+    // ... (kode untuk bintang-bintang tetap sama di bagian awal) ...
     const nightSky = document.getElementById('nightSky');
     const starCount = 200;
     const shootingStarCount = 3;
     
-    // Create regular stars
     for (let i = 0; i < starCount; i++) {
         const star = document.createElement('div');
         star.className = 'star';
-        
-        // Random position
         const left = Math.random() * 100;
         const top = Math.random() * 100;
-        
-        // Random size
         const size = Math.random() * 3 + 1;
-        
-        // Random animation delay
         const delay = Math.random() * 3;
-        
         star.style.left = `${left}%`;
         star.style.top = `${top}%`;
         star.style.width = `${size}px`;
         star.style.height = `${size}px`;
         star.style.animationDelay = `${delay}s`;
-        
-        // Add glow effect to some stars
         if (Math.random() > 0.7) {
             star.classList.add('bright');
         } else if (Math.random() > 0.4) {
             star.classList.add('medium');
         }
-        
         nightSky.appendChild(star);
     }
     
-    // Create shooting stars
     for (let i = 0; i < shootingStarCount; i++) {
         const shootingStar = document.createElement('div');
         shootingStar.className = 'shooting-star';
-        
-        // Random position and size
         const left = Math.random() * 50;
         const top = Math.random() * 50;
         const width = Math.random() * 100 + 50;
         const delay = Math.random() * 10 + 5;
-        
         shootingStar.style.left = `${left}%`;
         shootingStar.style.top = `${top}%`;
         shootingStar.style.width = `${width}px`;
         shootingStar.style.animationDelay = `${delay}s`;
-        
         nightSky.appendChild(shootingStar);
     }
-    
-    // Elements
+
+    // Elemen UI
     const deployForm = document.getElementById('deployForm');
     const fileUploadArea = document.getElementById('fileUploadArea');
     const htmlFile = document.getElementById('htmlFile');
@@ -71,7 +55,37 @@ document.addEventListener('DOMContentLoaded', function() {
     const notificationToast = document.getElementById('notificationToast');
     const toast = new bootstrap.Toast(notificationToast);
     
-    // File upload handling
+    // TAMBAHAN: Elemen untuk pesan error konfigurasi
+    const configErrorDiv = document.getElementById('configError');
+
+    // FUNGSI BARU: Periksa konfigurasi saat halaman dimuat
+    async function checkServerConfig() {
+        try {
+            const response = await fetch('/api/check-config');
+            const data = await response.json();
+
+            if (!data.success) {
+                // Tampilkan error konfigurasi di halaman
+                configErrorDiv.textContent = `⚠️ ${data.message} Deploy tidak akan berfungsi hingga ini diperbaiki di dashboard Vercel (Settings > Environment Variables).`;
+                configErrorDiv.style.display = 'block';
+                // Nonaktifkan tombol deploy
+                deployButton.disabled = true;
+                deployButton.textContent = 'Konfigurasi Server Salah';
+            } else {
+                console.log('Konfigurasi server valid:', data.message);
+            }
+        } catch (error) {
+            console.error('Gagal memeriksa konfigurasi server:', error);
+            configErrorDiv.textContent = '⚠️ Tidak dapat memeriksa konfigurasi server. Pastikan web sudah di-deploy dengan benar.';
+            configErrorDiv.style.display = 'block';
+            deployButton.disabled = true;
+        }
+    }
+
+    // Panggil fungsi pemeriksaan
+    checkServerConfig();
+    
+    // ... (kode event listener untuk file upload, drag-drop, dll tetap sama) ...
     htmlFile.addEventListener('change', function() {
         if (this.files && this.files[0]) {
             const file = this.files[0];
@@ -85,7 +99,6 @@ document.addEventListener('DOMContentLoaded', function() {
         fileInfo.style.display = 'none';
     });
     
-    // Drag and drop handling
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
         fileUploadArea.addEventListener(eventName, preventDefaults, false);
     });
@@ -136,38 +149,31 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Validate website name
         if (!/^[a-z0-9-]+$/.test(websiteName)) {
             showNotification('error', 'Error', 'Nama website hanya boleh mengandung huruf kecil, angka, dan tanda hubung (-).');
             return;
         }
         
-        // Validate file type
         if (!file.name.match(/\.(html|htm)$/i)) {
             showNotification('error', 'Error', 'Hanya file HTML yang diperbolehkan.');
             return;
         }
         
-        // Start deployment process
         startDeployment(websiteName, file);
     });
     
-    // Copy URL menggunakan modern Clipboard API
     copyUrl.addEventListener('click', async function() {
         const url = deploymentUrl.value;
         try {
             await navigator.clipboard.writeText(url);
             showNotification('success', 'Berhasil', 'URL telah disalin ke clipboard.');
         } catch (err) {
-            console.error('Gagal menyalin teks: ', err);
-            // Fallback untuk browser lama
             deploymentUrl.select();
             document.execCommand('copy');
             showNotification('success', 'Berhasil', 'URL telah disalin ke clipboard.');
         }
     });
     
-    // Show notification
     function showNotification(type, title, message) {
         const toastIcon = document.getElementById('toastIcon');
         const toastTitle = document.getElementById('toastTitle');
@@ -187,37 +193,30 @@ document.addEventListener('DOMContentLoaded', function() {
         toast.show();
     }
     
-    // Start deployment process
     function startDeployment(websiteName, file) {
-        // Reset UI
         deployButton.disabled = true;
         deployButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Mendeploy...';
         deploymentStatus.style.display = 'block';
         resultCard.style.display = 'none';
         
-        // Reset progress
         const progressBar = document.querySelector('.progress-bar');
         progressBar.style.width = '0%';
         
-        // Reset status steps
         document.querySelectorAll('.status-step').forEach(step => {
             step.classList.remove('active');
             step.querySelector('i').className = 'bi bi-circle';
         });
         
-        // Create FormData for file upload
         const formData = new FormData();
         formData.append('websiteName', websiteName);
         formData.append('htmlFile', file);
         
-        // Make API call to serverless function
         fetch('/api/deploy', {
             method: 'POST',
             body: formData
         })
         .then(response => {
             if (!response.ok) {
-                // Coba mendapatkan pesan error dari response
                 return response.json().then(err => {
                     throw new Error(err.message || `Server error with status: ${response.status}`);
                 });
@@ -225,48 +224,35 @@ document.addEventListener('DOMContentLoaded', function() {
             return response.json();
         })
         .then(data => {
-            // Update UI based on response
             if (data.success) {
-                // Show success steps
+                // ... (animasi sukses tetap sama) ...
                 updateStep(1, true);
                 progressBar.style.width = '25%';
-                
-                setTimeout(() => {
-                    updateStep(2, true);
-                    progressBar.style.width = '50%';
-                }, 500);
-                
-                setTimeout(() => {
-                    updateStep(3, true);
-                    progressBar.style.width = '75%';
-                }, 1000);
-                
+                setTimeout(() => { updateStep(2, true); progressBar.style.width = '50%'; }, 500);
+                setTimeout(() => { updateStep(3, true); progressBar.style.width = '75%'; }, 1000);
                 setTimeout(() => {
                     updateStep(4, true);
                     progressBar.style.width = '100%';
-                    
-                    // Show result
                     showResult(true, 'Deployment Berhasil!', 'Website Anda telah berhasil di-deploy ke Vercel.', data.url);
                 }, 1500);
             } else {
-                showResult(false, 'Deployment Gagal', data.message || 'Terjadi kesalahan saat melakukan deployment.');
+                // PERBAIKAN: Tampilkan pesan error yang SANGAT SPESIFIK dari backend
+                showResult(false, 'Deployment Gagal', data.message);
             }
             
-            // Reset button
             deployButton.disabled = false;
             deployButton.innerHTML = '<i class="bi bi-rocket-takeoff me-2"></i>Deploy ke Vercel';
         })
         .catch(error => {
             console.error('Error:', error);
-            showResult(false, 'Deployment Gagal', error.message || 'Terjadi kesalahan saat menghubungi server. Silakan coba lagi.');
+            // PERBAIKAN: Tampilkan pesan error yang SANGAT SPESIFIK dari backend
+            showResult(false, 'Deployment Gagal', error.message);
             
-            // Reset button
             deployButton.disabled = false;
             deployButton.innerHTML = '<i class="bi bi-rocket-takeoff me-2"></i>Deploy ke Vercel';
         });
     }
     
-    // Update step status
     function updateStep(stepNumber, isActive) {
         const step = document.getElementById(`step${stepNumber}`);
         if (isActive) {
@@ -278,7 +264,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Show result
     function showResult(success, title, message, url = null) {
         const resultIcon = document.getElementById('resultIcon');
         const resultTitle = document.getElementById('resultTitle');
