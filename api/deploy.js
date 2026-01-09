@@ -61,11 +61,11 @@ export default async function handler(req, res) {
       }
     ];
 
-    // PERUBAHAN KRUSIAL: Payload yang lebih sederhana dan target 'preview' yang lebih aman
+    // Payload yang paling sederhana dan stabil
     const deploymentPayload = {
       files: filesToUpload,
       project: projectId,
-      target: 'preview' // Gunakan 'preview' untuk menghindari masalah izin production
+      target: 'preview' // Gunakan preview untuk menghindari masalah izin
     };
 
     if (teamId) {
@@ -110,7 +110,6 @@ export default async function handler(req, res) {
     fs.unlinkSync(htmlFile.filepath);
 
     if (deployment.readyState === 'ERROR') {
-      // PERBAIKAN: Ambil pesan error yang sangat spesifik
       const errorMessage = deployment.error?.message || deployment.errorMessage || 'Kesalahan tidak diketahui dari Vercel.';
       return res.status(500).json({
         success: false,
@@ -139,10 +138,9 @@ export default async function handler(req, res) {
       try { fs.unlinkSync(req.files.htmlFile[0].filepath); } catch (e) {}
     }
 
-    // PERBAIKAN TERPENTING: Kirim error yang SANGAT JELAS dari API Vercel
+    // Kirim error yang sangat jelas dari API Vercel
     let finalMessage = 'Terjadi kesalahan internal server.';
     if (error.response) {
-      // Error dari API Vercel
       const apiError = error.response.data?.error?.message || error.response.data?.message;
       if (apiError) {
         finalMessage = `Kesalahan dari Vercel: ${apiError}`;
