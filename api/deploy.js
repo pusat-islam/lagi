@@ -1,6 +1,6 @@
-const formidable = require('formidable');
-const axios = require('axios');
-const fs = require('fs');
+import formidable from 'formidable';
+import axios from 'axios';
+import fs from 'fs';
 
 // Nonaktifkan body parser bawaan Vercel untuk bisa menangani multipart/form-data
 export const config = {
@@ -9,7 +9,7 @@ export const config = {
   },
 };
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   // Hanya izinkan metode POST
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, message: 'Metode tidak diizinkan' });
@@ -167,4 +167,4 @@ module.exports = async function handler(req, res) {
       message: `Terjadi kesalahan: ${errorMessage}`
     });
   }
-};
+}
