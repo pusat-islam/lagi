@@ -2,7 +2,7 @@ import formidable from 'formidable';
 import axios from 'axios';
 import fs from 'fs';
 
-// Nonaktifkan body parser bawaan Vercel untuk bisa menangani multipart/form-data
+// Nonaktifkan body parser bawaan Vercel
 export const config = {
   api: {
     bodyParser: false,
@@ -31,7 +31,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // Validasi nama website (hanya huruf kecil, angka, dan hyphen)
+    // Validasi nama website
     if (!/^[a-z0-9-]+$/.test(websiteName)) {
       return res.status(400).json({
         success: false,
@@ -50,13 +50,13 @@ export default async function handler(req, res) {
     // Dapatkan kredensial dari environment variables
     const vercelToken = process.env.VERCEL_TOKEN;
     const projectId = process.env.VERCEL_PROJECT_ID;
-    const teamId = process.env.VERCEL_TEAM_ID || null; // Opsional, jika menggunakan tim
+    const teamId = process.env.VERCEL_TEAM_ID || null;
 
     if (!vercelToken || !projectId) {
-      console.error('Missing VERCEL_TOKEN or VERCEL_PROJECT_ID');
+      console.error('Konfigurasi Hilang: VERCEL_TOKEN atau VERCEL_PROJECT_ID tidak diatur.');
       return res.status(500).json({
         success: false,
-        message: 'Konfigurasi server tidak lengkap. Hubungi administrator.'
+        message: 'Konfigurasi server tidak lengkap. Pastikan VERCEL_TOKEN dan VERCEL_PROJECT_ID sudah diatur dengan benar.'
       });
     }
 
@@ -72,18 +72,20 @@ export default async function handler(req, res) {
       }
     ];
 
-    // Buat deployment ke proyek yang sudah ada
+    // PERBAIKAN: Buat payload deployment yang BENAR
+    // Kita TIDAK menggunakan 'name' di sini agar tidak bentrok dengan 'project'
     const deploymentPayload = {
-      name: websiteName, // Nama deployment, bukan nama proyek
       files: filesToUpload,
-      project: projectId, // Target ke proyek yang sudah ada
-      target: 'production' // Bisa 'production' atau 'preview'
+      project: projectId, // Target ke proyek host yang sudah ada
+      target: 'production' // Gunakan 'production' agar URL lebih stabil
     };
 
     // Jika menggunakan tim, tambahkan teamId
     if (teamId) {
       deploymentPayload.teamId = teamId;
     }
+
+    console.log('Mengirim permintaan deployment ke Vercel...');
 
     // Kirim request ke API Vercel
     const deploymentResponse = await axios.post(
@@ -98,12 +100,14 @@ export default async function handler(req, res) {
     );
 
     let deployment = deploymentResponse.data;
-    let attempts = 0;
-    const maxAttempts = 30; // Maksimal 60 detik (30 * 2 detik)
+    console.log('Deployment dibuat, ID:', deployment.id);
 
-    // Polling status deployment hingga selesai atau timeout
+    let attempts = 0;
+    const maxAttempts = 30;
+
+    // Polling status deployment
     while (deployment.readyState !== 'READY' && deployment.readyState !== 'ERROR' && attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Tunggu 2 detik
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       try {
         const statusResponse = await axios.get(
@@ -115,9 +119,11 @@ export default async function handler(req, res) {
           }
         );
         deployment = statusResponse.data;
+        console.log(`Status deployment: ${deployment.readyState} (Percobaan ${attempts + 1})`);
       } catch (statusError) {
-        console.error('Error checking deployment status:', statusError.response?.data || statusError.message);
-        // Lanjutkan, mungkin hanya error sementara
+        // Log error spesifik dari API Vercel
+        const apiError = statusError.response?.data;
+        console.error('Error saat mengecek status:', apiError || statusError.message);
       }
       
       attempts++;
@@ -128,43 +134,47 @@ export default async function handler(req, res) {
 
     // Cek hasil akhir deployment
     if (deployment.readyState === 'ERROR') {
+      // Ambil pesan error yang lebih spesifik jika ada
+      const errorMessage = deployment.errorMessage || deployment.error?.message || 'Kesalahan tidak diketahui.';
       return res.status(500).json({
         success: false,
-        message: `Deployment gagal: ${deployment.errorMessage || 'Kesalahan tidak diketahui.'}`
+        message: `Deployment gagal: ${errorMessage}`
       });
     }
 
     if (deployment.readyState !== 'READY') {
       return res.status(500).json({
         success: false,
-        message: 'Deployment timeout. Proses terlalu lama.'
+        message: 'Deployment timeout. Proses di Vercel terlalu lama.'
       });
     }
 
     // Deployment berhasil
+    console.log('Deployment berhasil, URL:', deployment.url);
     res.json({
       success: true,
-      url: deployment.url // URL unik dari deployment ini
+      url: deployment.url
     });
 
   } catch (error) {
-    console.error('Error during deployment process:', error.response?.data || error.message);
+    console.error('ERROR KESALAHAN UTAMA:', error.response?.data || error.message);
     
     // Hapus file sementara jika ada
     if (req.files?.htmlFile?.[0]?.filepath) {
       try {
         fs.unlinkSync(req.files.htmlFile[0].filepath);
       } catch (cleanupError) {
-        console.error('Error cleaning up temp file:', cleanupError.message);
+        console.error('Error menghapus file sementara:', cleanupError.message);
       }
     }
 
-    // Kirim error yang lebih spesifik jika ada
-    const errorMessage = error.response?.data?.error?.message || error.message || 'Terjadi kesalahan internal server.';
+    // Kirim error yang sangat spesifik dari API Vercel
+    const apiError = error.response?.data?.error?.message;
+    const finalMessage = apiError || error.message || 'Terjadi kesalahan internal server.';
     
     res.status(500).json({
       success: false,
-      message: `Terjadi kesalahan: ${errorMessage}`
+      message: `Terjadi kesalahan: ${finalMessage}`
     });
   }
 }
