@@ -58,32 +58,39 @@ document.addEventListener('DOMContentLoaded', function() {
     // TAMBAHAN: Elemen untuk pesan error konfigurasi
     const configErrorDiv = document.getElementById('configError');
 
-    // FUNGSI BARU: Periksa konfigurasi saat halaman dimuat
-    async function checkServerConfig() {
-        try {
-            const response = await fetch('/api/check-config');
-            const data = await response.json();
+    // FUNGSI YANG DIPERBAIKI: Periksa konfigurasi saat halaman dimuat
+async function checkServerConfig() {
+    try {
+        const response = await fetch('/api/check-config');
+        const data = await response.json();
 
-            if (!data.success) {
-                // Tampilkan error konfigurasi di halaman
-                configErrorDiv.textContent = `⚠️ ${data.message} Deploy tidak akan berfungsi hingga ini diperbaiki di dashboard Vercel (Settings > Environment Variables).`;
-                configErrorDiv.style.display = 'block';
-                // Nonaktifkan tombol deploy
-                deployButton.disabled = true;
-                deployButton.textContent = 'Konfigurasi Server Salah';
-            } else {
-                console.log('Konfigurasi server valid:', data.message);
-            }
-        } catch (error) {
-            console.error('Gagal memeriksa konfigurasi server:', error);
-            configErrorDiv.textContent = '⚠️ Tidak dapat memeriksa konfigurasi server. Pastikan web sudah di-deploy dengan benar.';
+        if (!data.success) {
+            // Tampilkan pesan error YANG SANGAT SPESIFIK dari server
+            const configErrorDiv = document.getElementById('configError');
+            configErrorDiv.innerHTML = `⚠️ <strong>Kesalahan Konfigurasi Server:</strong> ${data.message}`;
             configErrorDiv.style.display = 'block';
+            // Nonaktifkan tombol deploy
             deployButton.disabled = true;
+            deployButton.textContent = 'Server Tidak Dikonfigurasi';
+        } else {
+            console.log('✅ Konfigurasi server valid:', data.message);
+            // Sembunyikan div error jika sebelumnya ada
+            const configErrorDiv = document.getElementById('configError');
+            configErrorDiv.style.display = 'none';
         }
+    } catch (error) {
+        console.error('Gagal memeriksa konfigurasi server:', error);
+        const configErrorDiv = document.getElementById('configError');
+        configErrorDiv.innerHTML = `⚠️ <strong>Tidak Terhubung ke Server:</strong> Tidak dapat memeriksa konfigurasi. Pastikan web sudah di-deploy dengan benar.`;
+        configErrorDiv.style.display = 'block';
+        deployButton.disabled = true;
     }
+}
 
-    // Panggil fungsi pemeriksaan
-    checkServerConfig();
+// Panggil fungsi pemeriksaan
+checkServerConfig();
+
+// ... (sisa kode JavaScript tetap sama) ...
     
     // ... (kode event listener untuk file upload, drag-drop, dll tetap sama) ...
     htmlFile.addEventListener('change', function() {
