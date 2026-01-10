@@ -7,45 +7,59 @@ export default async function handler(req, res) {
 
   const vercelToken = process.env.VERCEL_TOKEN;
   const projectId = process.env.VERCEL_PROJECT_ID;
-  const teamId = process.env.VERCEL_TEAM_ID || null;
 
+  // Periksa apakah variabel ada di environment
   if (!vercelToken) {
-    return res.json({ success: false, message: 'Environment Variable VERCEL_TOKEN tidak diatur.' });
+    return res.json({ 
+      success: false, 
+      message: 'Environment Variable VERCEL_TOKEN tidak ditemukan di server. Pastikan sudah ditambahkan di dashboard Vercel (Settings > Environment Variables) dan proyek sudah di-redeploy.' 
+    });
   }
   if (!projectId) {
-    return res.json({ success: false, message: 'Environment Variable VERCEL_PROJECT_ID tidak diatur.' });
+    return res.json({ 
+      success: false, 
+      message: 'Environment Variable VERCEL_PROJECT_ID tidak ditemukan di server. Pastikan sudah ditambahkan di dashboard Vercel (Settings > Environment Variables) dan proyek sudah di-redeploy.' 
+    });
   }
 
+  // Coba lakukan panggilan API sungguhan untuk memvalidasi token
   try {
-    // Coba akses informasi proyek untuk memvalidasi token dan project ID
-    const projectUrl = teamId 
-      ? `https://api.vercel.com/v9/projects/${projectId}?teamId=${teamId}`
-      : `https://api.vercel.com/v9/projects/${projectId}`;
-
-    const response = await axios.get(projectUrl, {
+    const response = await axios.get('https://api.vercel.com/v4/user', {
       headers: {
         'Authorization': `Bearer ${vercelToken}`
       }
     });
 
-    // Jika berhasil, berarti konfigurasi benar
-    res.json({ 
-      success: true, 
-      message: 'Konfigurasi Vercel valid!',
-      projectName: response.data.name
-    });
+    // Token valid, sekarang cek project ID
+    try {
+      const projectResponse = await axios.get(`https://api.vercel.com/v9/projects/${projectId}`, {
+        headers: {
+          'Authorization': `Bearer ${vercelToken}`
+        }
+      });
 
-  } catch (error) {
-    let errorMessage = 'Konfigurasi Vercel tidak valid.';
-    if (error.response) {
-      if (error.response.status === 403 || error.response.status === 401) {
-        errorMessage = 'VERCEL_TOKEN tidak valid atau tidak memiliki izin yang cukup (butuh izin "Manage Projects").';
-      } else if (error.response.status === 404) {
-        errorMessage = 'VERCEL_PROJECT_ID tidak ditemukan. Pastikan Anda menyalin ID yang benar (dimulai dengan "prj_").';
+      // Semua valid!
+      return res.json({ 
+        success: true, 
+        message: 'Konfigurasi Vercel sempurna!',
+        projectName: projectResponse.data.name
+      });
+
+    } catch (projectError) {
+      let projectErrorMessage = 'VERCEL_PROJECT_ID tidak valid.';
+      if (projectError.response?.status === 404) {
+        projectErrorMessage = `VERCEL_PROJECT_ID tidak ditemukan. Pastikan Anda menyalin ID yang benar (dimulai dengan "prj_"). ID yang Anda gunakan: ${projectId}`;
       } else {
-        errorMessage = `Kesalahan dari Vercel: ${error.response.data?.message || 'Status ' + error.response.status}`;
+        projectErrorMessage = `Kesalahan saat memeriksa Project ID: ${projectError.response?.data?.message || projectError.message}`;
       }
+      return res.json({ success: false, message: projectErrorMessage });
     }
-    res.json({ success: false, message: errorMessage });
+
+  } catch (tokenError) {
+    let tokenErrorMessage = 'VERCEL_TOKEN tidak valid.';
+    if (tokenError.response?.status === 401 || tokenError.response?.status === 403) {
+      tokenErrorMessage = 'VERCEL_TOKEN tidak valid atau kadaluarsa. Buat token baru di Vercel Dashboard > Account > Tokens dengan izin "Create Deployments" dan "Manage Projects".';
+    }
+    return res.json({ success: false, message: tokenErrorMessage });
   }
 }
